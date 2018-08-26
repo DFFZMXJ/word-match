@@ -1,0 +1,116 @@
+<!doctype html>
+<html dir="ltr" lang="zh_CN">
+    <head>
+        <meta charset="utf-8" />
+        <title>成语接龙</title>
+        <style>
+            body{
+                background:#fafafa;
+                font-family: 'Segoe UI', Arial, 'Microsoft YaHei', sans-serif;
+            }
+            .title{
+                text-align:center;
+                color:rgba(0,0,0,.87);
+                font-size:24px;
+            }
+            .description{
+                text-align:center;
+                color:rgba(0,0,0,.87);
+                line-height:24px;
+                font-size:14px;
+                margin-left:auto;
+                margin-right:auto;
+                width:50vw;
+            }
+            #error{
+                color:red;
+            }
+        </style>
+    </head>
+    <body>
+        <h1 class="title">成语接龙</h1>
+        <p class="description">
+            &nbsp;&nbsp;&nbsp;&nbsp;成语接龙你玩过吧？这是我对其的一个简单实现。当然，词库远远不够完成游戏，如果你想让其更好，欢迎贡献词库！
+            <br />
+            <strong>游戏规则：</strong> 通过系统随机给出的词汇的最后一个字，进行联想，提交开头包涵这个字的成语（4字），系统会对其进行检查，如果此成语确实存在，则系统提供一个符合规则的词，继续游戏，如果提供不出来，你就赢了！
+        </p>
+        <p class="description"><strong>已接龙的成语个数：</strong><span id="word-count">0</span></p>
+        <p class="description"><strong>当前成语：</strong><span id="word-now">游戏未开始！</span></p>
+        <form class="word-matcher" align="center" onsubmit="match(this);return false;">
+            <input type="text" id="word-input" disabled name="word" placeholder="接龙的成语" />
+            <input type="submit" name="sbb" value="开始游戏" />
+        </form>
+        <p class="description" id="error"></p>
+        <script>
+            var error = document.getElementById("error");
+            var matched = 0;
+            var started = false;
+            var currentWord = null;
+            function ajaxGet(url){
+                var xhr = new window.XMLHttpRequest();
+                xhr.open("GET",url,false);
+                xhr.send();
+                return {
+                    status:xhr.status,
+                    response:xhr.responseText,
+                    xhr:xhr
+                };
+            }
+            function match(form){
+                error.innerHTML="";
+                if(!started){
+                    var re = ajaxGet("api.php?type=start");
+                    if(re.status!=200) error.innerHTML = "连接错误，请稍后重试！";
+                    else try{
+                        re.response = JSON.parse(re.response);
+                        currentWord=re.response.data.word;
+                        form.word.removeAttribute("disabled");
+                        document.querySelector("#word-now").innerHTML=currentWord;
+                        matched = 0;
+                        document.querySelector("#word-count").innerHTML=matched;
+                        form.sbb.value="提交";
+                        started=true;
+                    }catch(err){
+                        error.innerHTML="程序出错，错误："+err;
+                    }
+                    return;
+                }
+                var word = form.word.value;
+                if(!word.match(/^[\u4e00-\u9fa5]{4}$/)) error.innerHTML= "成语应为4个汉字";
+                else {
+                    var re = ajaxGet("api.php?type=verify&rawword="+currentWord+"&newword="+word);
+                    if(re.status!=200) switch(re.status){
+                        case 404:
+                            re.response=JSON.parse(re.response);
+                            error.innerHTML=re.response.message;
+                            break;
+                        case 406:
+                            error.innerHTML="系统错误！";
+                            break;
+                        default:
+                            error.innerHTML="网络出现错误！";
+                            break;
+                    }else {
+                        re.response=JSON.parse(re.response);
+                        matched++;
+                        document.querySelector("#word-count").innerHTML=matched;
+                        if(re.response.data.win){
+                            form.sbb.value="开始游戏";
+                            form.word.setAttribute("disabled","disabled");
+                            error.innerHTML="系统都被你打败了，牛皮！";
+                            started=false;
+                        }else{
+                            try{
+                                currentWord=re.response.data.word;
+                                document.querySelector("#word-now").innerHTML=currentWord;
+                                form.word.value="";
+                            }catch(err){
+                                error.innerHTML="程序出错！错误："+err;
+                            }
+                        }
+                    }
+                }
+            }
+        </script>
+    </body>
+</html>
